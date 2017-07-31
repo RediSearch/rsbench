@@ -56,7 +56,9 @@ func (idx *Indexer) loop() {
 	st := time.Now()
 	for doc := range idx.ch {
 
-		idx.client.IndexOptions(redisearch.IndexingOptions{NoSave: true}, doc)
+		if err := idx.client.IndexOptions(redisearch.IndexingOptions{NoSave: true}, doc); err != nil {
+			log.Println(err)
+		}
 		if x := atomic.AddUint64(&idx.counter, 1); x%10000 == 0 {
 			elapsed := time.Since(st)
 			currentTime := time.Since(idx.lastTime)

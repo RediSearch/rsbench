@@ -4,6 +4,7 @@ import (
 	"compress/bzip2"
 	"fmt"
 	"io"
+	"math"
 	"strings"
 
 	"github.com/RedisLabs/rsbench/indexer"
@@ -71,7 +72,8 @@ func (rr *RedditReader) Read() (doc redisearch.Document, err error) {
 
 	} else {
 
-		doc = redisearch.NewDocument(fmt.Sprintf("%s/%s", rd.Subreddit, rd.Id), float32(rd.Score)).
+		doc = redisearch.NewDocument(fmt.Sprintf("%s/%s", rd.Subreddit, rd.Id),
+			float32(math.Min(1, float64(math.Max(0, float64(rd.Score)))/1000))).
 			Set("body", rd.Body).
 			Set("author", rd.Author).
 			Set("sub", rd.Subreddit).
