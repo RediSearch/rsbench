@@ -1,6 +1,8 @@
 package main
 
 import (
+	"flag"
+
 	"github.com/RedisLabs/redisearch-go/redisearch"
 	"github.com/RedisLabs/rsbench/indexer"
 	"github.com/RedisLabs/rsbench/parser"
@@ -8,43 +10,30 @@ import (
 
 func main() {
 
-	// sfs := []indexer.DocumentParser{
-	// 	indexer.NewSingleFileReader("/Users/dvirvolk/Downloads/reddit_data/2016/RC_2016-08.bz2",
-	// 		indexer.DocumentReaderOpenerFunc(parser.RedditReaderOpen)),
-	// 	indexer.NewSingleFileReader("/Users/dvirvolk/Downloads/reddit_data/2008/RC_2008-01.bz2",
-	// 		indexer.DocumentReaderOpenerFunc(parser.RedditReaderOpen)),
-	// }
-	sfs := []indexer.DocumentParser{
-		indexer.NewSingleFileReader("/Users/dvirvolk/data/wiki/enwiki-latest-abstract1.xml",
-			indexer.DocumentReaderOpenerFunc(parser.WikiReaderOpen)),
-		indexer.NewSingleFileReader("/Users/dvirvolk/data/wiki/enwiki-latest-abstract2.xml",
-			indexer.DocumentReaderOpenerFunc(parser.WikiReaderOpen)),
-		indexer.NewSingleFileReader("/Users/dvirvolk/data/wiki/enwiki-latest-abstract3.xml",
-			indexer.DocumentReaderOpenerFunc(parser.WikiReaderOpen)),
-		indexer.NewSingleFileReader("/Users/dvirvolk/data/wiki/enwiki-latest-abstract4.xml",
-			indexer.DocumentReaderOpenerFunc(parser.WikiReaderOpen)),
-		indexer.NewSingleFileReader("/Users/dvirvolk/data/wiki/enwiki-latest-abstract5.xml",
-			indexer.DocumentReaderOpenerFunc(parser.WikiReaderOpen)),
-		indexer.NewSingleFileReader("/Users/dvirvolk/data/wiki/enwiki-latest-abstract6.xml",
-			indexer.DocumentReaderOpenerFunc(parser.WikiReaderOpen)),
-		indexer.NewSingleFileReader("/Users/dvirvolk/data/wiki/enwiki-latest-abstract7.xml",
-			indexer.DocumentReaderOpenerFunc(parser.WikiReaderOpen)),
-		indexer.NewSingleFileReader("/Users/dvirvolk/data/wiki/enwiki-latest-abstract8.xml",
-			indexer.DocumentReaderOpenerFunc(parser.WikiReaderOpen)),
-		indexer.NewSingleFileReader("/Users/dvirvolk/data/wiki/enwiki-latest-abstract9.xml",
-			indexer.DocumentReaderOpenerFunc(parser.WikiReaderOpen)),
-		indexer.NewSingleFileReader("/Users/dvirvolk/data/wiki/enwiki-latest-abstract10.xml",
-			indexer.DocumentReaderOpenerFunc(parser.WikiReaderOpen)),
-	}
-	ch := make(chan redisearch.Document, 1000)
+	reader := flag.String("reader", "wiki", "Reader to use (wiki|reddit)")
+	path := flag.String("path", "./", "folder/file path")
 
-	for _, sf := range sfs {
+	flag.Parse()
+	var sp indexer.SchemaProvider
+	var rd indexer.DocumentParser
 
-		if err := sf.Start(ch); err != nil {
-			panic(err)
-		}
+	switch *reader {
+	case "wiki":
+		rd = indexer.NewFolderReader(*path, "*.xml", 8, indexer.DocumentReaderOpenerFunc(parser.WikiReaderOpen))
+		sp = indexer.SchemaProviderFunc(parser.WikipediaSchema)
+	case "reddit":
+		rd = indexer.NewFolderReader(*path, "*.bz2", 8, indexer.DocumentReaderOpenerFunc(parser.RedditReaderOpen))
+		sp = indexer.SchemaProviderFunc(parser.RedditSchema)
+	default:
+		panic("Inavlid reader: " + *reader)
 	}
 
-	idx := indexer.New("wik", "localhost:6379", 100, ch, nil)
+	ch := make(chan redisearch.Document, 100)
+
+	if err := rd.Start(ch); err != nil {
+		panic(err)
+	}
+
+	idx := indexer.New("idx", "localhost:6379", 100, ch, nil, sp)
 	idx.Start()
 }

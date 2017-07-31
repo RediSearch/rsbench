@@ -10,6 +10,13 @@ import (
 	"github.com/RedisLabs/rsbench/indexer"
 )
 
+func WikipediaSchema() *redisearch.Schema {
+	return redisearch.NewSchema(redisearch.DefaultOptions).
+		AddField(redisearch.NewTextField("body")).
+		AddField(redisearch.NewTextField("title")).
+		AddField(redisearch.NewTextField("url"))
+}
+
 func filter(title, body string) bool {
 
 	if strings.HasPrefix(title, "List of") || strings.HasPrefix(body, "#REDIRECT") || strings.HasPrefix(body, "#redirect") ||

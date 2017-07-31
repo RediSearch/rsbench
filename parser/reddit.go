@@ -44,6 +44,14 @@ type RedditReader struct {
 	dec *json.Decoder
 }
 
+func RedditSchema() *redisearch.Schema {
+	return redisearch.NewSchema(redisearch.DefaultOptions).
+		AddField(redisearch.NewTextField("body")).
+		AddField(redisearch.NewTextField("author")).
+		AddField(redisearch.NewTextField("sub")).
+		AddField(redisearch.NewNumericField("date"))
+}
+
 func RedditReaderOpen(r io.Reader) (indexer.DocumentReader, error) {
 
 	bz := bzip2.NewReader(r)

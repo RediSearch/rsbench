@@ -19,6 +19,16 @@ type DocumentReader interface {
 	Read() (redisearch.Document, error)
 }
 
+type SchemaProvider interface {
+	Schema() *redisearch.Schema
+}
+
+type SchemaProviderFunc func() *redisearch.Schema
+
+func (s SchemaProviderFunc) Schema() *redisearch.Schema {
+	return s()
+}
+
 type DocumentReaderOpener interface {
 	Open(io.Reader) (DocumentReader, error)
 }
@@ -34,6 +44,7 @@ type Indexer struct {
 	concurrency int
 	ch          chan redisearch.Document
 	parser      DocumentParser
+	sp          SchemaProvider
 	wg          sync.WaitGroup
 	counter     uint64
 	lastCount   uint64
@@ -41,11 +52,11 @@ type Indexer struct {
 }
 
 func (idx *Indexer) loop() {
-	docs := make([]redisearch.Document, 1)
-	st := time.Now()
-	for docs[0] = range idx.ch {
 
-		//idx.client.Index(docs, redisearch.IndexingOptions{NoSave: true})
+	st := time.Now()
+	for doc := range idx.ch {
+
+		idx.client.IndexOptions(redisearch.IndexingOptions{NoSave: true}, doc)
 		if x := atomic.AddUint64(&idx.counter, 1); x%10000 == 0 {
 			elapsed := time.Since(st)
 			currentTime := time.Since(idx.lastTime)
@@ -57,12 +68,13 @@ func (idx *Indexer) loop() {
 	idx.wg.Done()
 }
 
-func New(name, host string, concurrency int, ch chan redisearch.Document, parser DocumentParser) *Indexer {
+func New(name, host string, concurrency int, ch chan redisearch.Document, parser DocumentParser, sp SchemaProvider) *Indexer {
 	return &Indexer{
 		client:      redisearch.NewClient(host, name),
 		concurrency: concurrency,
 		ch:          ch,
 		parser:      parser,
+		sp:          sp,
 		wg:          sync.WaitGroup{},
 		counter:     0,
 		lastCount:   0,
