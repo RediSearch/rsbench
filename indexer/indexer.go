@@ -57,7 +57,7 @@ func (idx *Indexer) loop() {
 	for doc := range idx.ch {
 
 		if err := idx.client.IndexOptions(redisearch.IndexingOptions{NoSave: true}, doc); err != nil {
-			log.Println(err)
+			log.Printf("Error indexing %s: %s\n", doc.Id, err)
 		}
 		if x := atomic.AddUint64(&idx.counter, 1); x%10000 == 0 {
 			elapsed := time.Since(st)
