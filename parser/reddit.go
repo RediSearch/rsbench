@@ -2,6 +2,7 @@ package parser
 
 import (
 	"compress/bzip2"
+	"fmt"
 	"io"
 	"strings"
 
@@ -70,7 +71,7 @@ func (rr *RedditReader) Read() (doc redisearch.Document, err error) {
 
 	} else {
 
-		doc = redisearch.NewDocument(rd.Id, float32(rd.Score)).
+		doc = redisearch.NewDocument(fmt.Sprintf("%s/%s", rd.Subreddit, rd.Id), float32(rd.Score)).
 			Set("body", rd.Body).
 			Set("author", rd.Author).
 			Set("sub", rd.Subreddit).
