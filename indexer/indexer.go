@@ -106,7 +106,8 @@ func (idx *Indexer) loop() {
 			elapsed := time.Since(st)
 			currentTime := time.Since(idx.lastTime)
 			currentMB := float64(bytes-idx.lastBytes) / math.Pow(1024, 2)
-			log.Printf("Indexed %d docs in %v, rate %.02fdocs/sec, %.02fMB/s", x, elapsed,
+			log.Printf("Indexed %d docs in %0.3fs, rate %.02f Docs/sec, %.02fMB/s", x,
+				elapsed.Seconds(),
 				float64(x-idx.lastCount)/currentTime.Seconds(),
 				float64(currentMB/currentTime.Seconds()))
 			idx.lastCount = x
