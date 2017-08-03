@@ -27,6 +27,15 @@ func NewFolderReader(path, pattern string, concurrency int, opener DocumentReade
 }
 
 func (fr *FolderReader) walkDir(path string, pattern string, ch chan string) {
+	info, err := os.Stat(path)
+	if err != nil {
+		log.Printf("Could not stat path %s: %s", path, err)
+	}
+
+	if !info.IsDir() {
+		ch <- path
+		return
+	}
 
 	files, err := ioutil.ReadDir(path)
 
