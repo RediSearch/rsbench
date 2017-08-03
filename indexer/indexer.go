@@ -3,6 +3,7 @@ package indexer
 import (
 	"io"
 	"log"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,53 +40,104 @@ func (f DocumentReaderOpenerFunc) Open(r io.Reader) (DocumentReader, error) {
 	return f(r)
 }
 
+type IndexerOptions struct {
+	Concurrency int
+	ChunkSize   int
+	Limit       uint64
+}
+
 type Indexer struct {
-	client      *redisearch.Client
-	concurrency int
-	ch          chan redisearch.Document
-	parser      DocumentParser
-	sp          SchemaProvider
-	wg          sync.WaitGroup
-	counter     uint64
-	lastCount   uint64
-	lastTime    time.Time
+	IndexerOptions
+	client    *redisearch.Client
+	chunkSize int
+	ch        chan redisearch.Document
+	parser    DocumentParser
+	sp        SchemaProvider
+	wg        sync.WaitGroup
+	counter   uint64
+	bytes     uint64
+	lastBytes uint64
+	lastCount uint64
+	lastTime  time.Time
 }
 
 func (idx *Indexer) loop() {
 
 	st := time.Now()
-	for doc := range idx.ch {
+	interval := uint64(math.Max(float64(idx.ChunkSize), 50))
 
-		if err := idx.client.IndexOptions(redisearch.IndexingOptions{NoSave: true}, doc); err != nil {
-			log.Printf("Error indexing %s: %s\n", doc.Id, err)
+	// Buffer Size
+	buf := make([]redisearch.Document, 0)
+	bytes := uint64(0)
+
+	flush := func() {
+		mb := uint64(0)
+		for _, doc := range buf {
+			for key, val := range doc.Properties {
+				val, isString := val.(string)
+				mb += uint64(len(key))
+				if isString {
+					mb += uint64(len(val))
+				}
+			}
 		}
-		if x := atomic.AddUint64(&idx.counter, 1); x%10000 == 0 {
+
+		if err := idx.client.IndexOptions(redisearch.IndexingOptions{NoSave: true}, buf...); err != nil {
+			log.Printf("Error indexing %s\n", err)
+		}
+		bytes = atomic.AddUint64(&idx.bytes, mb)
+		buf = make([]redisearch.Document, 0)
+	}
+
+	for doc := range idx.ch {
+		if len(buf) == idx.ChunkSize {
+			flush()
+		}
+
+		buf = append(buf, doc)
+
+		x := atomic.AddUint64(&idx.counter, 1)
+		if idx.Limit > 0 && x >= idx.Limit {
+			idx.wg.Done()
+			return
+		}
+
+		if x%interval == 0 {
 			elapsed := time.Since(st)
 			currentTime := time.Since(idx.lastTime)
-			log.Printf("Indexed %d docs in %v, rate %.02fdocs/sec", x, elapsed, float64(x-idx.lastCount)/currentTime.Seconds())
+			currentMB := float64(bytes-idx.lastBytes) / math.Pow(1024, 2)
+			log.Printf("Indexed %d docs in %v, rate %.02fdocs/sec, %.02fMB/s", x, elapsed,
+				float64(x-idx.lastCount)/currentTime.Seconds(),
+				float64(currentMB/currentTime.Seconds()))
 			idx.lastCount = x
 			idx.lastTime = time.Now()
+			idx.lastBytes = bytes
 		}
 	}
+
+	flush()
 	idx.wg.Done()
 }
 
-func New(name, host string, concurrency int, ch chan redisearch.Document, parser DocumentParser, sp SchemaProvider) *Indexer {
+func New(name, host string, ch chan redisearch.Document, parser DocumentParser, sp SchemaProvider, options IndexerOptions) *Indexer {
 	return &Indexer{
-		client:      redisearch.NewClient(host, name),
-		concurrency: concurrency,
-		ch:          ch,
-		parser:      parser,
-		sp:          sp,
-		wg:          sync.WaitGroup{},
-		counter:     0,
-		lastCount:   0,
-		lastTime:    time.Now(),
+		IndexerOptions: options,
+		client:         redisearch.NewClient(host, name),
+		ch:             ch,
+		parser:         parser,
+		sp:             sp,
+		wg:             sync.WaitGroup{},
+		counter:        0,
+		lastCount:      0,
+		lastTime:       time.Now(),
 	}
 }
 
 func (idx *Indexer) Start() {
+	log.Print("Dropping old index")
 	idx.client.Drop()
+
+	log.Print("Creating new index")
 	// sc := redisearch.NewSchema(redisearch.DefaultOptions).
 	// 	AddField(redisearch.NewTextField("body")).
 	// 	AddField(redisearch.NewTextField("author")).
@@ -99,7 +151,7 @@ func (idx *Indexer) Start() {
 	if err := idx.client.CreateIndex(sc); err != nil {
 		panic(err)
 	}
-	for i := 0; i < idx.concurrency; i++ {
+	for i := 0; i < idx.Concurrency; i++ {
 		idx.wg.Add(1)
 		go idx.loop()
 	}

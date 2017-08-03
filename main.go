@@ -16,6 +16,8 @@ func main() {
 	files := flag.Int("rnum", 10, "Number of concurrent file readers")
 	host := flag.String("host", "localhost:6379", "Redis host")
 	index := flag.String("index", "idx", "Index name")
+	chunk := flag.Int("chunk", 10, "How many documents to index at a time")
+	ndocs := flag.Uint64("limit", 0, "Exit after indexing this many documents (0 is unlimited)")
 
 	flag.Parse()
 	var sp indexer.SchemaProvider
@@ -36,11 +38,11 @@ func main() {
 	}
 
 	ch := make(chan redisearch.Document, *cons)
-
 	if err := rd.Start(ch); err != nil {
 		panic(err)
 	}
 
-	idx := indexer.New(*index, *host, *cons, ch, nil, sp)
+	idx := indexer.New(*index, *host, ch, nil, sp, indexer.IndexerOptions{
+		Concurrency: *cons, ChunkSize: *chunk, Limit: *ndocs})
 	idx.Start()
 }
