@@ -134,7 +134,8 @@ func New(name, host string, ch chan redisearch.Document, parser DocumentParser, 
 	}
 }
 
-func (idx *Indexer) Start() {
+// SetupIndex - Drops the existing index and recreates it
+func (idx *Indexer) SetupIndex() {
 	log.Print("Dropping old index")
 	idx.client.Drop()
 
@@ -152,6 +153,16 @@ func (idx *Indexer) Start() {
 	if err := idx.client.CreateIndex(sc); err != nil {
 		panic(err)
 	}
+}
+
+// Validate - Validates that the index actually exists
+func (idx *Indexer) Validate() error {
+	_, err := idx.client.Info()
+	return err
+}
+
+// LoadDocuments - Loads the documents into the index. Returns once complete
+func (idx *Indexer) LoadDocuments() {
 	for i := 0; i < idx.Concurrency; i++ {
 		idx.wg.Add(1)
 		go idx.loop()

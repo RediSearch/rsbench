@@ -10,7 +10,7 @@ import (
 
 func main() {
 
-	reader := flag.String("reader", "wiki", "Reader to use (wiki|wiki-article|reddit)")
+	reader := flag.String("reader", "wiki-article", "Reader to use (wiki|wiki-article|reddit)")
 	path := flag.String("path", "./", "folder/file path")
 	cons := flag.Int("conns", 100, "Concuurent connections to redis")
 	files := flag.Int("rnum", 10, "Number of concurrent file readers")
@@ -18,6 +18,7 @@ func main() {
 	index := flag.String("index", "idx", "Index name")
 	chunk := flag.Int("chunk", 10, "How many documents to index at a time")
 	ndocs := flag.Uint64("limit", 0, "Exit after indexing this many documents (0 is unlimited)")
+	skipCreation := flag.Bool("skip-creation", false, "Don't drop and recreate the index")
 
 	flag.Parse()
 	var sp indexer.SchemaProvider
@@ -44,5 +45,12 @@ func main() {
 
 	idx := indexer.New(*index, *host, ch, nil, sp, indexer.IndexerOptions{
 		Concurrency: *cons, ChunkSize: *chunk, Limit: *ndocs})
-	idx.Start()
+
+	if !*skipCreation {
+		idx.SetupIndex()
+	}
+	if err := idx.Validate(); err != nil {
+		panic(err)
+	}
+	idx.LoadDocuments()
 }
