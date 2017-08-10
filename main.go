@@ -12,7 +12,7 @@ func main() {
 
 	reader := flag.String("reader", "wiki", "Reader to use (wiki|reddit)")
 	path := flag.String("path", "./", "folder/file path")
-	cons := flag.Int("conns", 100, "Concuurent connections to redis")
+	cons := flag.Int("conns", 100, "Concurrent connections to redis")
 	files := flag.Int("rnum", 10, "Number of concurrent file readers")
 	host := flag.String("host", "localhost:6379", "Redis host")
 	index := flag.String("index", "idx", "Index name")
