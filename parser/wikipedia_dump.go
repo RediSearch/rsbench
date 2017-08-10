@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"compress/bzip2"
 	"io"
 
 	"fmt"
@@ -29,7 +30,8 @@ func (wr *wikipediaDumpReader) Read() (doc redisearch.Document, err error) {
 
 // WikiArticleReaderOpen Create new reader for wikipedia article dumps
 func WikiArticleReaderOpen(r io.Reader) (wr indexer.DocumentReader, err error) {
-	parser, err := wp.NewParser(r)
+	bz := bzip2.NewReader(r)
+	parser, err := wp.NewParser(bz)
 	if err != nil {
 		return
 	}
