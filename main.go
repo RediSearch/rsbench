@@ -10,7 +10,7 @@ import (
 
 func main() {
 
-	reader := flag.String("reader", "wiki", "Reader to use (wiki|reddit)")
+	reader := flag.String("reader", "wiki_abs", "Reader to use (wiki_abs|wiki_full|reddit)")
 	path := flag.String("path", "./", "folder/file path")
 	cons := flag.Int("conns", 100, "Concurrent connections to redis")
 	files := flag.Int("rnum", 10, "Number of concurrent file readers")
@@ -22,8 +22,11 @@ func main() {
 	var rd indexer.DocumentParser
 
 	switch *reader {
-	case "wiki":
-		rd = indexer.NewFolderReader(*path, "*.xml", *files, indexer.DocumentReaderOpenerFunc(parser.WikiReaderOpen))
+	case "wiki_abs":
+		rd = indexer.NewFolderReader(*path, "*.xml", *files, indexer.DocumentReaderOpenerFunc(parser.WikiAbstractReaderOpen))
+		sp = indexer.SchemaProviderFunc(parser.WikipediaSchema)
+	case "wiki_full":
+		rd = indexer.NewFolderReader(*path, "*.bz2", *files, indexer.DocumentReaderOpenerFunc(parser.WikiArticleReaderOpen))
 		sp = indexer.SchemaProviderFunc(parser.WikipediaSchema)
 	case "reddit":
 		rd = indexer.NewFolderReader(*path, "*.bz2", *files, indexer.DocumentReaderOpenerFunc(parser.RedditReaderOpen))

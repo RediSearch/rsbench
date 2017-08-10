@@ -83,7 +83,7 @@ func (wr *WikipediaAbstractsReader) Read() (doc redisearch.Document, err error) 
 	return
 }
 
-func WikiReaderOpen(r io.Reader) (indexer.DocumentReader, error) {
+func WikiAbstractReaderOpen(r io.Reader) (indexer.DocumentReader, error) {
 
 	return NewWikipediaAbstractReader(r), nil
 }
