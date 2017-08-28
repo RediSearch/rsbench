@@ -1,3 +1,4 @@
-*.a
-*.o
-rsbench
+*
+!/**/
+!**/*.go
+!.gitignore
