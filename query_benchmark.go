@@ -1,7 +1,10 @@
 package main
 
 import (
-	"fmt"
+	"encoding/csv"
+	"encoding/json"
+	"io"
+	"strconv"
 	"sync"
 	"time"
 
@@ -9,16 +12,16 @@ import (
 )
 
 type QueryBenchmark struct {
-	query       *redisearch.Query
-	client      *redisearch.Client
-	concurrency int
-	endTime     time.Time
-	startTime   time.Time
-	runDuration time.Duration
-	numRequests int
-
-	wg       sync.WaitGroup
-	reportch chan error
+	query        *redisearch.Query
+	client       *redisearch.Client
+	concurrency  int
+	endTime      time.Time
+	startTime    time.Time
+	runDuration  time.Duration
+	numRequests  int
+	totalLatency time.Duration
+	wg           sync.WaitGroup
+	reportch     chan time.Duration
 }
 
 func NewQueryBenchmark(c *redisearch.Client, q string, concurrency int, runTime time.Duration) *QueryBenchmark {
@@ -27,20 +30,60 @@ func NewQueryBenchmark(c *redisearch.Client, q string, concurrency int, runTime 
 		client:      c,
 		concurrency: concurrency,
 		endTime:     time.Now().Add(runTime),
-		reportch:    make(chan error, concurrency),
+		reportch:    make(chan time.Duration, concurrency),
 		numRequests: 0,
 	}
 }
 
-func (b *QueryBenchmark) loop() {
+func (b *QueryBenchmark) DumpCSV(out io.Writer) error {
+	cw := csv.NewWriter(out)
+	vals := []string{
+		b.query.Raw,
+		strconv.FormatInt(int64(b.concurrency), 10),
+		strconv.FormatFloat(b.RequestsPerSecond(), 'f', 2, 64),
+		strconv.FormatFloat(b.AverageLatency(), 'f', 2, 64),
+	}
+	if e := cw.Write(vals); e != nil {
+		return e
+	}
+	cw.Flush()
+	return nil
+}
+func (b *QueryBenchmark) DumpJson(out io.Writer) error {
+	values := map[string]interface{}{
+		"query":       b.query.Raw,
+		"concurrency": b.concurrency,
+		"rps":         b.RequestsPerSecond(),
+		"latency":     b.AverageLatency(),
+	}
 
-	for time.Now().Before(b.endTime) {
+	enc := json.NewEncoder(out)
+	enc.SetIndent("", "\t")
+	return enc.Encode(values)
+}
+
+func (b *QueryBenchmark) loop() {
+	tm := time.Now()
+	for tm.Before(b.endTime) {
 		_, _, err := b.client.Search(b.query)
-		b.reportch <- err
+		if err == nil {
+			b.reportch <- time.Since(tm)
+		}
+		tm = time.Now()
+
 	}
 	b.wg.Done()
 
 }
+
+func (b *QueryBenchmark) RequestsPerSecond() float64 {
+	return float64(b.numRequests) / time.Since(b.startTime).Seconds()
+}
+
+func (b *QueryBenchmark) AverageLatency() float64 {
+	return time.Duration(uint64(b.totalLatency)/uint64(b.numRequests)).Seconds() * 1000
+}
+
 func (b *QueryBenchmark) Run() error {
 	for i := 0; i < b.concurrency; i++ {
 		b.wg.Add(1)
@@ -53,11 +96,13 @@ func (b *QueryBenchmark) Run() error {
 	b.startTime = time.Now()
 	lastSample := time.Now()
 	for {
-		if _, ok := <-b.reportch; ok {
+		if latency, ok := <-b.reportch; ok {
 			b.numRequests++
+			b.totalLatency += latency
 			if time.Since(lastSample) > time.Second {
-				fmt.Printf("%d requests in %v, rate: %.02fr/s\n", b.numRequests, time.Since(b.startTime),
-					float64(b.numRequests)/time.Since(b.startTime).Seconds())
+				// fmt.Printf("%d requests in %v, rate: %.02fr/s, Avg. latency: %.02fms\n", b.numRequests, time.Since(b.startTime),
+				// 	b.RequestsPerSecond(),
+				// 	b.AverageLatency())
 				lastSample = time.Now()
 			}
 		} else {
@@ -66,8 +111,8 @@ func (b *QueryBenchmark) Run() error {
 		}
 	}
 
-	fmt.Printf("%d requests for %s in %v, rate: %.02fr/s\n", b.numRequests, b.query.Raw, b.runDuration,
-		float64(b.numRequests)/b.runDuration.Seconds())
+	// log.Printf("%d requests for %s in %v, rate: %.02fr/s, Avg. Latency %.02fms", b.numRequests, b.query.Raw, b.runDuration,
+	// 	b.RequestsPerSecond(), b.AverageLatency())
 
 	return nil
 }

@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"fmt"
+	"os"
 	"time"
 
 	"github.com/RedisLabs/redisearch-go/redisearch"
@@ -20,6 +20,7 @@ func main() {
 	index := flag.String("index", "idx", "Index name")
 	query := flag.String("query", "", "Query to benchmark (if set)")
 	duration := flag.Int("duration", 5, "Duration to run the query benchmark for")
+	csv := flag.Bool("csv", false, "If set, we dump the output report as CSV")
 
 	flag.Parse()
 
@@ -55,7 +56,13 @@ func main() {
 		client := redisearch.NewClient(*hosts, *index)
 
 		b := NewQueryBenchmark(client, *query, *cons, time.Second*time.Duration(*duration))
-		fmt.Printf("Starting benchmark for %v\n", time.Until(b.endTime))
+		//fmt.Printf("Starting benchmark for %v\n", time.Until(b.endTime))
 		b.Run()
+		if *csv {
+			b.DumpCSV(os.Stdout)
+		} else {
+			b.DumpJson(os.Stdout)
+		}
+
 	}
 }
