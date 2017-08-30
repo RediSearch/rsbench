@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/csv"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strconv"
 	"sync"
@@ -103,9 +104,9 @@ func (b *QueryBenchmark) Run() error {
 			b.numRequests++
 			b.totalLatency += latency
 			if time.Since(lastSample) > time.Second {
-				// fmt.Printf("%d requests in %v, rate: %.02fr/s, Avg. latency: %.02fms\n", b.numRequests, time.Since(b.startTime),
-				// 	b.RequestsPerSecond(),
-				// 	b.AverageLatency())
+				fmt.Printf("%d requests in %v, rate: %.02fr/s, Avg. latency: %.02fms\n", b.numRequests, time.Since(b.startTime),
+					b.RequestsPerSecond(),
+					b.AverageLatency())
 				lastSample = time.Now()
 			}
 		} else {
