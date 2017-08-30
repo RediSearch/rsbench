@@ -26,7 +26,10 @@ type QueryBenchmark struct {
 
 func NewQueryBenchmark(c *redisearch.Client, q string, concurrency int, runTime time.Duration) *QueryBenchmark {
 	return &QueryBenchmark{
-		query:       redisearch.NewQuery(q).SetFlags(redisearch.QueryNoContent|redisearch.QueryVerbatim).Limit(0, 1),
+		query: redisearch.NewQuery(q).
+			SetFlags(redisearch.QueryNoContent|redisearch.QueryVerbatim).
+			Limit(0, 1).
+			SetScorer("DISMAX"),
 		client:      c,
 		concurrency: concurrency,
 		endTime:     time.Now().Add(runTime),
