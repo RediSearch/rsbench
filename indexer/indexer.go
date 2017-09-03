@@ -45,6 +45,7 @@ func (f DocumentReaderOpenerFunc) Open(r io.Reader) (DocumentReader, error) {
 type Indexer struct {
 	client       *redisearch.Client
 	concurrency  int
+	chunkSize    int
 	ch           chan redisearch.Document
 	parser       DocumentParser
 	sp           SchemaProvider
@@ -60,7 +61,7 @@ func (idx *Indexer) loop() {
 
 	cw := csv.NewWriter(os.Stdout)
 	st := time.Now()
-	N := 10
+	N := idx.chunkSize
 	chunk := make([]redisearch.Document, N)
 	dx := 0
 	for doc := range idx.ch {
@@ -110,7 +111,8 @@ func (idx *Indexer) loop() {
 	idx.wg.Done()
 }
 
-func New(name, host string, concurrency int, ch chan redisearch.Document, parser DocumentParser, sp SchemaProvider) *Indexer {
+func New(name, host string, concurrency int, ch chan redisearch.Document,
+	parser DocumentParser, sp SchemaProvider, chunkSize int) *Indexer {
 	return &Indexer{
 		client:      redisearch.NewClient(host, name),
 		concurrency: concurrency,
@@ -121,6 +123,7 @@ func New(name, host string, concurrency int, ch chan redisearch.Document, parser
 		counter:     0,
 		lastCount:   0,
 		lastTime:    time.Now(),
+		chunkSize:   chunkSize,
 	}
 }
 

@@ -21,6 +21,7 @@ func main() {
 	query := flag.String("query", "", "Query to benchmark (if set)")
 	duration := flag.Int("duration", 5, "Duration to run the query benchmark for")
 	csv := flag.Bool("csv", false, "If set, we dump the output report as CSV")
+	chunk := flag.Int("chunk", 1, "Indexing chunk size")
 
 	flag.Parse()
 
@@ -48,7 +49,7 @@ func main() {
 			panic(err)
 		}
 
-		idx := indexer.New(*index, *hosts, *cons, ch, nil, sp)
+		idx := indexer.New(*index, *hosts, *cons, ch, nil, sp, *chunk)
 		idx.Start()
 	}
 	if *query != "" {
