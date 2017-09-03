@@ -58,30 +58,37 @@ func (idx *Indexer) loop() {
 
 	cw := csv.NewWriter(os.Stdout)
 	st := time.Now()
+	N := 10
+	chunk := make([]redisearch.Document, N)
+	dx := 0
 	for doc := range idx.ch {
-
-		t1 := time.Now()
-		if err := idx.client.IndexOptions(redisearch.IndexingOptions{NoSave: true}, doc); err != nil {
-			//log.Printf("Error indexing %s: %s\n", doc.Id, err)
-			continue
+		chunk[dx] = doc
+		dx++
+		if dx == N {
+			t1 := time.Now()
+			if err := idx.client.IndexOptions(redisearch.IndexingOptions{NoSave: true}, doc); err != nil {
+				//log.Printf("Error indexing %s: %s\n", doc.Id, err)
+				continue
+			}
+			latency := time.Since(t1)
+			atomic.AddUint64(&idx.totalLatency, uint64(latency))
+			if x := atomic.AddUint64(&idx.counter, uint64(N)); x%10000 == 0 {
+				elapsed := time.Since(st)
+				currentTime := time.Since(idx.lastTime)
+				avgLatency := time.Duration(idx.totalLatency/idx.counter).Seconds() * 1000
+				cw.Write([]string{
+					strconv.FormatUint(x, 10),
+					strconv.FormatFloat(elapsed.Seconds(), 'f', 2, 32),
+					strconv.FormatFloat(float64(x-idx.lastCount)/currentTime.Seconds(), 'f', 2, 32),
+					strconv.FormatFloat(avgLatency, 'f', 2, 32),
+				})
+				cw.Flush()
+				//log.Printf("Indexed %d docs in %v, rate %.02fdocs/sec", x, elapsed, float64(x-idx.lastCount)/currentTime.Seconds())
+				idx.lastCount = x
+				idx.lastTime = time.Now()
+			}
 		}
-		latency := time.Since(t1)
-		atomic.AddUint64(&idx.totalLatency, uint64(latency))
-		if x := atomic.AddUint64(&idx.counter, 1); x%10000 == 0 {
-			elapsed := time.Since(st)
-			currentTime := time.Since(idx.lastTime)
-			avgLatency := time.Duration(idx.totalLatency/idx.counter).Seconds() * 1000
-			cw.Write([]string{
-				strconv.FormatUint(x, 10),
-				strconv.FormatFloat(elapsed.Seconds(), 'f', 2, 32),
-				strconv.FormatFloat(float64(x-idx.lastCount)/currentTime.Seconds(), 'f', 2, 32),
-				strconv.FormatFloat(avgLatency, 'f', 2, 32),
-			})
-			cw.Flush()
-			//log.Printf("Indexed %d docs in %v, rate %.02fdocs/sec", x, elapsed, float64(x-idx.lastCount)/currentTime.Seconds())
-			idx.lastCount = x
-			idx.lastTime = time.Now()
-		}
+		dx = 0
 	}
 	idx.wg.Done()
 }
