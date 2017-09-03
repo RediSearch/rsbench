@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/RedisLabs/redisearch-go/redisearch"
 )
@@ -68,6 +69,13 @@ func (fr *FolderReader) Start(ch chan<- redisearch.Document) error {
 	// start the independent idexing workers
 	go func() {
 		waitch := make(chan struct{}, fr.concurrency)
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			wg.Wait()
+			close(ch)
+		}()
+
 		for f := range filech {
 			// send something to the waitch that will be consumed by the workers
 			waitch <- struct{}{}
@@ -75,6 +83,7 @@ func (fr *FolderReader) Start(ch chan<- redisearch.Document) error {
 			if fp, err := os.Open(f); err != nil {
 				log.Println("Error opening ", f, ":", err)
 			} else {
+				wg.Add(1)
 				go func(r io.Reader) {
 					// defer reading from the wait channel to signal that we've finished
 					defer func() {
@@ -93,6 +102,7 @@ func (fr *FolderReader) Start(ch chan<- redisearch.Document) error {
 						}
 						err = e
 					}
+					wg.Done()
 				}(fp)
 
 			}
