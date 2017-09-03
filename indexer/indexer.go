@@ -52,6 +52,7 @@ type Indexer struct {
 	counter      uint64
 	lastCount    uint64
 	totalLatency uint64
+	lastDataSize uint64
 	lastTime     time.Time
 }
 
@@ -74,23 +75,34 @@ func (idx *Indexer) loop() {
 				//continue
 			}
 			latency := time.Since(t1)
-			atomic.AddUint64(&idx.totalLatency, uint64(latency))
-			if x := atomic.AddUint64(&idx.counter, uint64(N)); x%10000 == 0 && time.Since(idx.lastTime) > 5*time.Second {
+			var totalSz uint64
+			for i := range chunk {
+				totalSz += uint64(chunk[i].EstimateSize())
+			}
+			dataSize := atomic.AddUint64(&idx.lastDataSize, uint64(totalSz))
+			totalLatency := atomic.AddUint64(&idx.totalLatency, uint64(latency))
+			if x := atomic.AddUint64(&idx.counter, uint64(N)); x%1000 == 0 && time.Since(idx.lastTime) > 5*time.Second {
 				elapsed := time.Since(st)
 				currentTime := time.Since(idx.lastTime)
-				avgLatency := time.Duration(idx.totalLatency/idx.counter).Seconds() * 1000
+				avgLatency := time.Duration(totalLatency/idx.counter).Seconds() * 1000
+				dataRate := (float64(dataSize) / currentTime.Seconds()) / (1024 * 1024)
+
 				cw.Write([]string{
-					strconv.FormatUint(x, 10),
 					strconv.FormatFloat(elapsed.Seconds(), 'f', 2, 32),
+					strconv.FormatUint(x, 10),
 					strconv.FormatFloat(float64(x-idx.lastCount)/currentTime.Seconds(), 'f', 2, 32),
 					strconv.FormatFloat(avgLatency, 'f', 2, 32),
+					strconv.FormatFloat(dataRate, 'f', 2, 32),
 				})
 				cw.Flush()
-				log.Printf("Indexed %d docs in %v, rate %.02fdocs/sec, latency %.02fms", x, elapsed,
+				log.Printf("Indexed %d docs in %v, rate %.02fdocs/sec, latency %.02fms, dataRate: %.02fMB/s", x, elapsed,
 					float64(x-idx.lastCount)/currentTime.Seconds(),
-					avgLatency)
-				idx.lastCount = x
+					avgLatency, dataRate)
+
+				atomic.StoreUint64(&idx.lastCount, x)
+				atomic.StoreUint64(&idx.lastDataSize, 0)
 				idx.lastTime = time.Now()
+
 			}
 
 		}
