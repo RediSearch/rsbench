@@ -58,10 +58,11 @@ func (fr *FolderReader) walkDir(path string, pattern string, ch chan string) {
 func (fr *FolderReader) Start(ch chan<- redisearch.Document) error {
 	filech := make(chan string)
 	go func() {
-		defer close(filech)
+
 		fr.walkDir(fr.folder, fr.pattern, filech)
 		// filech is unbuffered, so we can close it when all the files have been read
-		close(ch)
+		log.Println("finished dir walk, closing file channel")
+		close(filech)
 	}()
 
 	// start the independent idexing workers

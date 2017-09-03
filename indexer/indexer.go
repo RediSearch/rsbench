@@ -3,6 +3,7 @@ package indexer
 import (
 	"encoding/csv"
 	"io"
+	"log"
 	"os"
 	"strconv"
 	"sync"
@@ -74,7 +75,7 @@ func (idx *Indexer) loop() {
 			}
 			latency := time.Since(t1)
 			atomic.AddUint64(&idx.totalLatency, uint64(latency))
-			if x := atomic.AddUint64(&idx.counter, uint64(N)); x%10000 == 0 && time.Since(idx.lastTime) > time.Second {
+			if x := atomic.AddUint64(&idx.counter, uint64(N)); x%10000 == 0 && time.Since(idx.lastTime) > 5*time.Second {
 				elapsed := time.Since(st)
 				currentTime := time.Since(idx.lastTime)
 				avgLatency := time.Duration(idx.totalLatency/idx.counter).Seconds() * 1000
@@ -85,7 +86,9 @@ func (idx *Indexer) loop() {
 					strconv.FormatFloat(avgLatency, 'f', 2, 32),
 				})
 				cw.Flush()
-				//log.Printf("Indexed %d docs in %v, rate %.02fdocs/sec", x, elapsed, float64(x-idx.lastCount)/currentTime.Seconds())
+				log.Printf("Indexed %d docs in %v, rate %.02fdocs/sec, latency %.02fms", x, elapsed,
+					float64(x-idx.lastCount)/currentTime.Seconds(),
+					avgLatency)
 				idx.lastCount = x
 				idx.lastTime = time.Now()
 			}
