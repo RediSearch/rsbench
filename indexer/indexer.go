@@ -74,7 +74,7 @@ func (idx *Indexer) loop() {
 			}
 			latency := time.Since(t1)
 			atomic.AddUint64(&idx.totalLatency, uint64(latency))
-			if x := atomic.AddUint64(&idx.counter, uint64(N)); x%10000 <= 2 {
+			if x := atomic.AddUint64(&idx.counter, uint64(N)); x%10000 == 0 && time.Since(idx.lastTime) > time.Second {
 				elapsed := time.Since(st)
 				currentTime := time.Since(idx.lastTime)
 				avgLatency := time.Duration(idx.totalLatency/idx.counter).Seconds() * 1000
