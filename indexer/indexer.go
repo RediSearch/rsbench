@@ -65,14 +65,16 @@ func (idx *Indexer) loop() {
 		chunk[dx] = doc
 		dx++
 		if dx == N {
+			dx = 0
+
 			t1 := time.Now()
-			if err := idx.client.IndexOptions(redisearch.IndexingOptions{NoSave: true}, doc); err != nil {
+			if err := idx.client.IndexOptions(redisearch.IndexingOptions{NoSave: true}, chunk...); err != nil {
 				//log.Printf("Error indexing %s: %s\n", doc.Id, err)
-				continue
+				//continue
 			}
 			latency := time.Since(t1)
 			atomic.AddUint64(&idx.totalLatency, uint64(latency))
-			if x := atomic.AddUint64(&idx.counter, uint64(N)); x%10000 == 0 {
+			if x := atomic.AddUint64(&idx.counter, uint64(N)); x%10000 <= 2 {
 				elapsed := time.Since(st)
 				currentTime := time.Since(idx.lastTime)
 				avgLatency := time.Duration(idx.totalLatency/idx.counter).Seconds() * 1000
@@ -87,8 +89,8 @@ func (idx *Indexer) loop() {
 				idx.lastCount = x
 				idx.lastTime = time.Now()
 			}
+
 		}
-		dx = 0
 	}
 	idx.wg.Done()
 }
