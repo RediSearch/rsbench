@@ -1,7 +1,6 @@
 package indexer
 
 import (
-	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -56,6 +55,34 @@ func (fr *FolderReader) walkDir(path string, pattern string, ch chan string) {
 	}
 }
 
+func (fr *FolderReader) loop(ch chan<- redisearch.Document, in <-chan string, wg *sync.WaitGroup) {
+	for f := range in {
+		// send something to the waitch that will be consumed by the workers
+		log.Println("Opening", f)
+		if fp, err := os.Open(f); err != nil {
+			log.Println("Error opening ", f, ":", err)
+		} else {
+			dr, err := fr.opener.Open(fp)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			for err == nil {
+
+				doc, e := dr.Read()
+				if e == nil {
+					ch <- doc
+				}
+				err = e
+			}
+		}
+		log.Println("Finished reading", f)
+	}
+	log.Println("Reader exiting")
+	wg.Done()
+
+}
+
 func (fr *FolderReader) Start(ch chan<- redisearch.Document) error {
 	filech := make(chan string)
 	wg := sync.WaitGroup{}
@@ -72,44 +99,11 @@ func (fr *FolderReader) Start(ch chan<- redisearch.Document) error {
 	}()
 
 	// start the independent idexing workers
-	go func() {
-		waitch := make(chan struct{}, fr.concurrency)
+	for i := 0; i < fr.concurrency; i++ {
+		wg.Add(1)
+		go fr.loop(ch, filech, &wg)
+	}
 
-		for f := range filech {
-			// send something to the waitch that will be consumed by the workers
-			waitch <- struct{}{}
-			log.Println("Opening", f)
-			if fp, err := os.Open(f); err != nil {
-				log.Println("Error opening ", f, ":", err)
-			} else {
-				wg.Add(1)
-				go func(r io.Reader) {
-					// defer reading from the wait channel to signal that we've finished
-					defer func() {
-						<-waitch
-					}()
-					dr, err := fr.opener.Open(fp)
-					if err != nil {
-						log.Println(err)
-						return
-					}
-					for err == nil {
-
-						doc, e := dr.Read()
-						if e == nil {
-							ch <- doc
-						}
-						err = e
-					}
-					wg.Done()
-				}(fp)
-
-			}
-
-		}
-		log.Println("Finished reading!")
-
-	}()
 	return nil
 }
 
