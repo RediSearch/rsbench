@@ -55,18 +55,11 @@ type Indexer struct {
 	totalLatency uint64
 	lastDataSize uint64
 	lastTime     time.Time
+	cw           *csv.Writer
 }
 
 func (idx *Indexer) loop() {
 
-	cw := csv.NewWriter(os.Stdout)
-	cw.Write([]string{
-		"Time Elapsed",
-		"Documents Indexed",
-		"Documents/Second",
-		"Avg. Latency",
-		"MBs/Second",
-	})
 	st := time.Now()
 	N := idx.chunkSize
 	chunk := make([]redisearch.Document, N)
@@ -95,14 +88,14 @@ func (idx *Indexer) loop() {
 				avgLatency := time.Duration(totalLatency/idx.counter).Seconds() * 1000
 				dataRate := (float64(dataSize) / currentTime.Seconds()) / (1024 * 1024)
 
-				cw.Write([]string{
+				idx.cw.Write([]string{
 					strconv.FormatFloat(elapsed.Seconds(), 'f', 2, 32),
 					strconv.FormatUint(x, 10),
 					strconv.FormatFloat(float64(x-idx.lastCount)/currentTime.Seconds(), 'f', 2, 32),
 					strconv.FormatFloat(avgLatency, 'f', 2, 32),
 					strconv.FormatFloat(dataRate, 'f', 2, 32),
 				})
-				cw.Flush()
+				idx.cw.Flush()
 				log.Printf("Indexed %d docs in %v, rate %.02fdocs/sec, latency %.02fms, dataRate: %.02fMB/s", x, elapsed,
 					float64(x-idx.lastCount)/currentTime.Seconds(),
 					avgLatency, dataRate)
@@ -120,7 +113,7 @@ func (idx *Indexer) loop() {
 
 func New(name, host string, concurrency int, ch chan redisearch.Document,
 	parser DocumentParser, sp SchemaProvider, chunkSize int) *Indexer {
-	return &Indexer{
+	ret := &Indexer{
 		client:      redisearch.NewClient(host, name),
 		concurrency: concurrency,
 		ch:          ch,
@@ -131,7 +124,18 @@ func New(name, host string, concurrency int, ch chan redisearch.Document,
 		lastCount:   0,
 		lastTime:    time.Now(),
 		chunkSize:   chunkSize,
+		cw:          csv.NewWriter(os.Stdout),
 	}
+
+	ret.cw.Write([]string{
+		"Time Elapsed",
+		"Documents Indexed",
+		"Documents/Second",
+		"Avg. Latency",
+		"MBs/Second",
+	})
+	ret.cw.Flush()
+	return ret
 }
 
 func (idx *Indexer) Start() {
