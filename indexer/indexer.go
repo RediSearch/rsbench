@@ -60,6 +60,13 @@ type Indexer struct {
 func (idx *Indexer) loop() {
 
 	cw := csv.NewWriter(os.Stdout)
+	cw.Write([]string{
+		"Time Elapsed",
+		"Documents Indexed",
+		"Documents/Second",
+		"Avg. Latency",
+		"MBs/Second",
+	})
 	st := time.Now()
 	N := idx.chunkSize
 	chunk := make([]redisearch.Document, N)

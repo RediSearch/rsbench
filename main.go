@@ -43,7 +43,7 @@ func main() {
 			panic("Inavlid reader: " + *reader)
 		}
 
-		ch := make(chan redisearch.Document, *cons)
+		ch := make(chan redisearch.Document, *cons**chunk)
 
 		if err := rd.Start(ch); err != nil {
 			panic(err)
