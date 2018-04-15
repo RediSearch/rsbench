@@ -12,7 +12,7 @@ import (
 
 func main() {
 
-	reader := flag.String("reader", "", "Reader to use (if set) [wiki_abs|wiki_full|reddit]")
+	reader := flag.String("reader", "", "Reader to use (if set) [wiki_abs|wiki_full|reddit|twitter]")
 	path := flag.String("path", "./", "folder/file path")
 	cons := flag.Int("conns", 100, "Concurrent connections to redis")
 	files := flag.Int("rnum", 10, "Number of concurrent file readers")
@@ -39,6 +39,12 @@ func main() {
 		case "reddit":
 			rd = indexer.NewFolderReader(*path, "*.bz2", *files, indexer.DocumentReaderOpenerFunc(parser.RedditReaderOpen))
 			sp = indexer.SchemaProviderFunc(parser.RedditSchema)
+		case "twitter":
+			rd = indexer.NewFolderReader(*path, "*.bz2", *files, indexer.DocumentReaderOpenerFunc(parser.TwitterReaderOpen))
+			sp = indexer.SchemaProviderFunc(parser.TwitterSchema)
+		case "stack":
+			rd = indexer.NewSingleFileReader(*path, indexer.DocumentReaderOpenerFunc(parser.StackExchangeReaderOpen))
+			sp = indexer.SchemaProviderFunc(parser.StackSchema)
 		default:
 			panic("Inavlid reader: " + *reader)
 		}

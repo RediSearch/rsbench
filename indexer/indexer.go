@@ -65,6 +65,9 @@ func (idx *Indexer) loop() {
 	chunk := make([]redisearch.Document, N)
 	dx := 0
 	for doc := range idx.ch {
+		if doc.Id == "" {
+			continue
+		}
 		chunk[dx] = doc
 		dx++
 		if dx == N {
@@ -145,10 +148,7 @@ func (idx *Indexer) Start() {
 	// 	AddField(redisearch.NewTextField("author")).
 	// 	AddField(redisearch.NewTextField("sub")).
 	// 	AddField(redisearch.NewNumericField("date"))
-	sc := redisearch.NewSchema(redisearch.DefaultOptions).
-		AddField(redisearch.NewTextField("body")).
-		AddField(redisearch.NewTextField("title")).
-		AddField(redisearch.NewTextField("url"))
+	sc := idx.sp.Schema()
 
 	if err := idx.client.CreateIndex(sc); err != nil {
 		panic(err)
