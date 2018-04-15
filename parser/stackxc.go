@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"compress/bzip2"
 	"encoding/xml"
 	"io"
 	"regexp"
@@ -31,9 +30,9 @@ type StackExchangeReader struct {
 }
 
 func NewStackExchangeReader(r io.Reader) *StackExchangeReader {
-	bz := bzip2.NewReader(r)
+
 	return &StackExchangeReader{
-		dec: xml.NewDecoder(bz),
+		dec: xml.NewDecoder(r),
 	}
 }
 
