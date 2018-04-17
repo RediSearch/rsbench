@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"compress/bzip2"
 	"encoding/xml"
 	"io"
 	"regexp"
@@ -16,7 +17,8 @@ func StackSchema() *redisearch.Schema {
 	return redisearch.NewSchema(redisearch.Options{NoFrequencies: true, NoOffsetVectors: true}).
 		AddField(redisearch.NewTextField("body")).
 		AddField(redisearch.NewTextField("title")).
-		AddField(redisearch.NewTagField("tags")).
+		AddField(redisearch.NewTagFieldOptions("tags",
+			redisearch.TagFieldOptions{Sortable: true})).
 		AddField(redisearch.NewNumericFieldOptions("score",
 			redisearch.NumericFieldOptions{Sortable: true, NoIndex: true})).
 		AddField(redisearch.NewNumericFieldOptions("answers",
@@ -30,9 +32,9 @@ type StackExchangeReader struct {
 }
 
 func NewStackExchangeReader(r io.Reader) *StackExchangeReader {
-
+	bz := bzip2.NewReader(r)
 	return &StackExchangeReader{
-		dec: xml.NewDecoder(r),
+		dec: xml.NewDecoder(bz),
 	}
 }
 
