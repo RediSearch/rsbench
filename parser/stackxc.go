@@ -19,6 +19,8 @@ func StackSchema() *redisearch.Schema {
 		AddField(redisearch.NewTextField("title")).
 		AddField(redisearch.NewTagFieldOptions("tags",
 			redisearch.TagFieldOptions{Sortable: true})).
+		AddField(redisearch.NewTagFieldOptions("user",
+			redisearch.TagFieldOptions{Sortable: true})).
 		AddField(redisearch.NewNumericFieldOptions("score",
 			redisearch.NumericFieldOptions{Sortable: true, NoIndex: true})).
 		AddField(redisearch.NewNumericFieldOptions("answers",
@@ -55,26 +57,38 @@ func processTags(raw string) string {
 	}
 	return strings.Join(s, ",")
 }
-func parseAttrs(attrs []xml.Attr) (doc redisearch.Document) {
+func parseAttrs(attrs []xml.Attr) (doc redisearch.Document, ret bool) {
+	ret = false
 	m := map[string]string{}
 	for _, a := range attrs {
 		m[a.Name.Local] = a.Value
 	}
+	if m["PostTypeId"] == "2" {
+		return
+	}
+
 	doc = redisearch.NewDocument(m["Id"], 1)
 	dt, _ := time.Parse("2006-01-02T15:04:05.000", m["CreationDate"])
+	answers := m["AnswerCount"]
+	if answers == "" {
+		answers = "0"
+	}
+
 	doc = doc.Set("body", strip.StripTags(m["Body"])).
 		Set("title", m["Title"]).
 		Set("tags", processTags(m["Tags"])).
 		Set("score", m["Score"]).
-		Set("answers", m["AnswerCount"]).
-		Set("time", dt.Unix())
+		Set("answers", answers).
+		Set("time", dt.Unix()).
+		Set("user", m["OwnerUserId"]).
+		Set("type", m["PostTypeId"])
+	ret = true
 	return
-
 }
 func (wr *StackExchangeReader) Read() (doc redisearch.Document, err error) {
 
 	var tok xml.Token
-
+	var ok bool
 	for err != io.EOF {
 		//fmt.Println("Reading...")
 		tok, err = wr.dec.RawToken()
@@ -82,8 +96,9 @@ func (wr *StackExchangeReader) Read() (doc redisearch.Document, err error) {
 
 		case xml.StartElement:
 			if t.Name.Local == "row" {
-				doc = parseAttrs(t.Attr)
-				return
+				if doc, ok = parseAttrs(t.Attr); ok {
+					return
+				}
 			}
 		default:
 			continue

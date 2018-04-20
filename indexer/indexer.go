@@ -75,8 +75,8 @@ func (idx *Indexer) loop() {
 
 			t1 := time.Now()
 			if err := idx.client.IndexOptions(redisearch.IndexingOptions{NoSave: true}, chunk...); err != nil {
-				//log.Printf("Error indexing %s: %s\n", doc.Id, err)
-				//continue
+				log.Printf("Error indexing %#v %s: %s\n", chunk, doc.Id, err)
+				continue
 			}
 			latency := time.Since(t1)
 			var totalSz uint64
