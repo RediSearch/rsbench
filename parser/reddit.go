@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"compress/bzip2"
 	"fmt"
 	"io"
 	"math"
@@ -55,11 +54,8 @@ func RedditSchema() *redisearch.Schema {
 }
 
 func RedditReaderOpen(r io.Reader) (indexer.DocumentReader, error) {
-
-	bz := bzip2.NewReader(r)
-
 	return &RedditReader{
-		dec: json.NewDecoder(bz),
+		dec: json.NewDecoder(r),
 	}, nil
 }
 

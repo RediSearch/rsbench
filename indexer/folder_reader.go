@@ -1,6 +1,9 @@
 package indexer
 
 import (
+	"compress/bzip2"
+	"compress/gzip"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -26,8 +29,7 @@ func NewFolderReader(path, pattern string, concurrency int, opener DocumentReade
 	}
 }
 
-func (fr *FolderReader) walkDir(path string, pattern string, ch chan string) {
-
+func (fr *FolderReader) processDir(path string, pattern string, ch chan string, level int) {
 	files, err := ioutil.ReadDir(path)
 
 	if err != nil {
@@ -37,21 +39,28 @@ func (fr *FolderReader) walkDir(path string, pattern string, ch chan string) {
 
 	for _, file := range files {
 		fullpath := filepath.Join(path, file.Name())
-		if file.IsDir() {
-			fr.walkDir(fullpath, pattern, ch)
-			continue
-		}
+		fr.processPath(fullpath, pattern, ch, level+1)
+	}
+}
 
+func (fr *FolderReader) processPath(path string, pattern string, ch chan string, level int) {
+	file, err := os.Stat(path)
+	if err != nil {
+		log.Panicf("Couldn't stat %s: %s", path, err)
+	}
+
+	if file.IsDir() {
+		fr.processDir(path, pattern, ch, level)
+	} else {
 		if match, err := filepath.Match(pattern, file.Name()); err == nil {
-
-			if match {
-				log.Println("Found file", fullpath)
-				ch <- fullpath
+			// If there is only one file, ignore the extension!
+			if level == 0 || match {
+				log.Println("Found file", path)
+				ch <- path
 			}
 		} else {
 			panic(err)
 		}
-
 	}
 }
 
@@ -59,9 +68,25 @@ func (fr *FolderReader) loop(ch chan<- redisearch.Document, in <-chan string, wg
 	for f := range in {
 		// send something to the waitch that will be consumed by the workers
 		log.Println("Opening", f)
-		if fp, err := os.Open(f); err != nil {
+		var fp io.Reader
+		var err error
+		if fp, err = os.Open(f); err != nil {
 			log.Println("Error opening ", f, ":", err)
 		} else {
+			ext := filepath.Ext(f)
+			var compressedReader io.Reader
+			switch ext {
+			case "bz2":
+				compressedReader = bzip2.NewReader(fp)
+			case "gz":
+				compressedReader, err = gzip.NewReader(fp)
+				if err != nil {
+					panic("Couldn't open gzip reader!")
+				}
+			}
+			if compressedReader != nil {
+				fp = compressedReader
+			}
 			dr, err := fr.opener.Open(fp)
 			if err != nil {
 				log.Println(err)
@@ -89,7 +114,7 @@ func (fr *FolderReader) Start(ch chan<- redisearch.Document) error {
 	wg.Add(1)
 	go func() {
 
-		fr.walkDir(fr.folder, fr.pattern, filech)
+		fr.processPath(fr.folder, fr.pattern, filech, 0)
 		// filech is unbuffered, so we can close it when all the files have been read
 		log.Println("finished dir walk, closing file channel")
 		close(filech)

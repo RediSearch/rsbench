@@ -159,3 +159,9 @@ func (idx *Indexer) Start() {
 	}
 	idx.wg.Wait()
 }
+
+// Returns the number of documents indexed
+func (idx *Indexer) GetNumIndexed() int {
+	idx.wg.Wait()
+	return int(idx.counter)
+}

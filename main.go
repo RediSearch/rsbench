@@ -24,6 +24,9 @@ func main() {
 	chunk := flag.Int("chunk", 1, "Indexing chunk size")
 
 	flag.Parse()
+	if *reader == "" && *query == "" {
+		panic("Must have query or reader!")
+	}
 
 	if *reader != "" {
 		var sp indexer.SchemaProvider
@@ -57,6 +60,9 @@ func main() {
 
 		idx := indexer.New(*index, *hosts, *cons, ch, nil, sp, *chunk)
 		idx.Start()
+		if idx.GetNumIndexed() == 0 {
+			panic("No documents indexed!")
+		}
 	}
 	if *query != "" {
 
