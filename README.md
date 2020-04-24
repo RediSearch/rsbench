@@ -1,5 +1,6 @@
 [![license](https://img.shields.io/github/license/RediSearch/rsbench.svg)](https://github.com/RediSearch/rsbench)
 [![GoDoc](https://godoc.org/github.com/RediSearch/rsbench?status.svg)](https://godoc.org/github.com/RediSearch/rsbench)
+[![Forum](https://img.shields.io/badge/Forum-RediSearch-blue)](https://forum.redislabs.com/c/modules/redisearch/)
 
 # rsbench
 Benchmarks for the RediSearch module
